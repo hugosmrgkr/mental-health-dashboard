@@ -3,6 +3,77 @@ import plotly.express as px
 import streamlit as st
 
 
+def _rapikan_grafik(fig, tinggi=480, legenda="h"):
+    legend_layout = (
+        dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            title=None,
+        )
+        if legenda == "v"
+        else dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.22,
+            xanchor="left",
+            x=0,
+            title=None,
+        )
+    )
+    fig.update_layout(
+        template="plotly_white",
+        height=tinggi,
+        autosize=True,
+        margin=dict(l=65, r=165 if legenda == "v" else 35, t=75, b=65),
+        title=dict(
+            x=0,
+            xanchor="left",
+            font=dict(size=18, color="#20294B"),
+        ),
+        font=dict(family="DM Sans, sans-serif", color="#46516D"),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FFFFFF",
+        hoverlabel=dict(
+            bgcolor="#172044",
+            font_size=13,
+            font_family="DM Sans, sans-serif",
+        ),
+        legend=legend_layout,
+    )
+    fig.update_xaxes(
+        showline=True,
+        linecolor="#DCE1EE",
+        gridcolor="#EEF1F7",
+        zeroline=False,
+        automargin=True,
+    )
+    fig.update_yaxes(
+        showline=False,
+        gridcolor="#EEF1F7",
+        zeroline=False,
+        automargin=True,
+    )
+    fig.update_xaxes(tickangle=-30)
+    return fig
+
+
+def _tampilkan_grafik(fig, tinggi=480, legenda="h", key=None):
+    _rapikan_grafik(fig, tinggi=tinggi, legenda=legenda)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displaylogo": False,
+            "responsive": True,
+            "scrollZoom": False,
+        },
+        key=key,
+    )
+
+
 def render_overview(
     df: pd.DataFrame,
     df_asli: pd.DataFrame,
@@ -63,12 +134,13 @@ def render_overview(
             )
 
             fig.update_traces(
-                textinfo="percent+label"
+                textinfo="percent",
+                textposition="inside",
+                hovertemplate="<b>%{label}</b><br>"
+                "Jumlah: %{value}<br>"
+                "Proporsi: %{percent}<extra></extra>",
             )
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
+            _tampilkan_grafik(fig, tinggi=430, legenda="v")
         else:
             st.info("Tidak ada kolom kategori.")
 
@@ -91,10 +163,11 @@ def render_overview(
                 color_discrete_sequence=["#5965DC"]
             )
 
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
+            fig.update_traces(
+                hovertemplate=f"<b>{pilih_angka}</b>: %{{x}}"
+                "<extra></extra>",
             )
+            _tampilkan_grafik(fig, tinggi=430)
         else:
             st.info("Tidak ada kolom numerik.")
 
@@ -248,9 +321,10 @@ def render_chart_builder(
                     title=judul
                 )
 
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
+                _tampilkan_grafik(
+                    fig,
+                    tinggi=max(500, 420 + len(kolom_numerik) * 8),
+                    legenda="v",
                 )
 
                 st.caption(
@@ -266,10 +340,7 @@ def render_chart_builder(
                 title=judul
             )
 
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
+            _tampilkan_grafik(fig, tinggi=500)
 
         elif jenis_grafik in ["Box Plot", "Violin Plot"]:
             if kolom_y not in kolom_numerik:
@@ -297,10 +368,7 @@ def render_chart_builder(
                         title=judul
                     )
 
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
-                )
+                _tampilkan_grafik(fig, tinggi=500, legenda="v")
 
         elif jenis_grafik == "Pie / Donut":
             hitung = (
@@ -323,13 +391,14 @@ def render_chart_builder(
 
             if tampilkan_label:
                 fig.update_traces(
-                    textinfo="percent+label"
+                    textinfo="percent",
+                    textposition="inside",
+                    hovertemplate="<b>%{label}</b><br>"
+                    "Jumlah: %{value}<br>"
+                    "Proporsi: %{percent}<extra></extra>",
                 )
 
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
+            _tampilkan_grafik(fig, tinggi=500, legenda="v")
 
         elif jenis_grafik == "Scatter Plot":
             if (
@@ -349,11 +418,15 @@ def render_chart_builder(
                     hover_data=df.columns.tolist(),
                     title=judul
                 )
-
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
+                fig.update_traces(
+                    marker=dict(size=9, opacity=0.78),
+                    hovertemplate=(
+                        f"<b>{kolom_x}</b>: %{{x}}<br>"
+                        f"<b>{kolom_y}</b>: %{{y}}<extra></extra>"
+                    ),
                 )
+
+                _tampilkan_grafik(fig, tinggi=500, legenda="v")
 
         else:
             kerja = df.copy()
@@ -430,13 +503,11 @@ def render_chart_builder(
             if tampilkan_label:
                 fig.update_traces(
                     texttemplate="%{y:.2f}",
-                    textposition="outside"
+                    textposition="outside",
+                    cliponaxis=False,
                 )
 
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
+            _tampilkan_grafik(fig, tinggi=520, legenda="v")
 
     except Exception as e:
         st.error(
@@ -569,10 +640,7 @@ def render_data_quality(df: pd.DataFrame) -> None:
         title="Distribusi Tipe Data"
     )
 
-    fig.update_layout(template="plotly_white")
-    st.plotly_chart(
-        fig, use_container_width=True
-    )
+    _tampilkan_grafik(fig, tinggi=500, legenda="v")
 
 
 # ==================================================
