@@ -172,11 +172,22 @@ with st.sidebar:
     )
 
     file_csv = None
+    buat_data_baru = False
 
     if sumber == "Upload CSV Sendiri":
         file_csv = st.file_uploader(
             "Upload file CSV",
             type=["csv"]
+        )
+    else:
+        buat_data_baru = st.button(
+            "Buat data demo baru",
+            use_container_width=True,
+            help=(
+                "Buat variasi dataset demo baru. "
+                "Data tidak berubah saat berpindah halaman "
+                "atau mengubah filter."
+            ),
         )
 
     st.divider()
@@ -201,7 +212,13 @@ with st.sidebar:
 # 5. MEMBACA DATA
 # ==================================================
 if sumber == "Dataset Demo":
-    df_asli = buat_data_dummy()
+    if (
+        "dataset_demo" not in st.session_state
+        or buat_data_baru
+    ):
+        st.session_state["dataset_demo"] = buat_data_dummy()
+
+    df_asli = st.session_state["dataset_demo"].copy()
 
 else:
     if file_csv is None:

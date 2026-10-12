@@ -1,12 +1,10 @@
 import numpy as np
 import pandas as pd
-import streamlit as st
 
 
-# Generate a stable synthetic dataset for demos and development.
-@st.cache_data
+# Generate a fresh synthetic dataset on every Streamlit rerun.
 def buat_data_dummy():
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng()
     n = 120
 
     usia = rng.integers(18, 61, n)
