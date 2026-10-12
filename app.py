@@ -1,15 +1,21 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
+
+from dashboard_pages import (
+    render_chart_builder,
+    render_data_explorer,
+    render_data_quality,
+    render_overview,
+)
+from data_utils import buat_data_dummy
 
 # ==================================================
 # 1. KONFIGURASI DAN TAMPILAN
 # ==================================================
 st.set_page_config(
     page_title="MindScope | Mental Health Dashboard",
-    page_icon="🧠",
+    page_icon="M",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -23,22 +29,22 @@ st.markdown("""
     font-family: 'DM Sans', sans-serif;
 }
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #151D3B, #29366B);
+    background: #172044;
 }
 [data-testid="stSidebar"] * {
     color: #FFFFFF;
 }
 .block-container {
-    padding-top: 1.8rem;
+    padding-top: 1.5rem;
     max-width: 1500px;
 }
 .hero {
-    background: linear-gradient(120deg, #172044, #414CC5, #6966E8);
-    padding: 30px;
-    border-radius: 22px;
+    background: #172044;
+    padding: 28px 32px;
+    border-radius: 14px;
     color: white;
     margin-bottom: 25px;
-    box-shadow: 0 10px 30px rgba(49, 61, 150, .15);
+    box-shadow: 0 8px 24px rgba(25, 39, 85, .12);
 }
 .hero h1 {
     color: white;
@@ -60,7 +66,7 @@ st.markdown("""
 div[data-testid="stMetric"] {
     background: white;
     border: 1px solid #E6EAF4;
-    border-radius: 16px;
+    border-radius: 12px;
     padding: 17px;
     box-shadow: 0 4px 16px rgba(25, 39, 85, .04);
 }
@@ -70,101 +76,66 @@ div[data-testid="stMetricLabel"] {
 div[data-testid="stMetricValue"] {
     color: #20294B;
 }
+div[data-testid="stTabs"] {
+    display: none;
+}
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+.sidebar-mark {
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #8590ff;
+    border-radius: 8px;
+    color: #ffffff;
+    font-weight: 800;
+}
+.sidebar-heading {
+    color: #aeb8e8;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin: 20px 0 8px;
+}
+.svg-icon {
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+    color: #5965DC;
+    margin-right: 8px;
+}
+.svg-icon svg {
+    width: 100%;
+    height: 100%;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ==================================================
-# 2. DATASET DUMMY
-# ==================================================
-@st.cache_data
-def buat_data_dummy():
-    rng = np.random.default_rng(42)
-    n = 120
-
-    usia = rng.integers(18, 61, n)
-    tidur = np.clip(rng.normal(6.8, 1.2, n), 3, 10).round(1)
-    aktivitas = rng.integers(0, 8, n)
-    kerja = np.clip(rng.normal(7.2, 2, n), 1, 14).round(1)
-
-    dukungan = rng.choice(
-        ["Rendah", "Sedang", "Tinggi"],
-        n,
-        p=[0.2, 0.5, 0.3]
-    )
-
-    stres = np.clip(
-        np.rint(
-            5 + (kerja - 7) * 0.65
-            + (6.5 - tidur) * 0.8
-            - aktivitas * 0.25
-            + rng.normal(0, 1.8, n)
-        ), 0, 10
-    ).astype(int)
-
-    cemas = np.clip(
-        np.rint(
-            stres * 0.65
-            + (6.5 - tidur) * 0.5
-            + rng.normal(0, 2, n)
-        ), 0, 10
-    ).astype(int)
-
-    depresi = np.clip(
-        np.rint(
-            (6.5 - tidur) * 0.75
-            + (5 - aktivitas) * 0.35
-            + (dukungan == "Rendah") * 1.5
-            + rng.normal(2.5, 1.8, n)
-        ), 0, 10
-    ).astype(int)
-
-    def kategori(skor):
-        if skor <= 3:
-            return "Rendah"
-        elif skor <= 6:
-            return "Sedang"
-        return "Tinggi"
-
-    df = pd.DataFrame({
-        "responden_id": [f"R{i:03}" for i in range(1, n + 1)],
-        "usia": usia,
-        "jenis_kelamin": rng.choice(
-            ["Laki-laki", "Perempuan"], n
-        ),
-        "pekerjaan": rng.choice(
-            ["Mahasiswa", "Karyawan", "Wiraswasta",
-             "Pencari Kerja", "Lainnya"],
-            n
-        ),
-        "jam_tidur_per_hari": tidur,
-        "jam_kerja_belajar_per_hari": kerja,
-        "aktivitas_fisik_hari_per_minggu": aktivitas,
-        "dukungan_sosial": dukungan,
-        "skor_stres_0_10": stres,
-        "skor_kecemasan_0_10": cemas,
-        "skor_depresi_0_10": depresi
-    })
-
-    for nama, skor in [
-        ("stres", stres),
-        ("kecemasan", cemas),
-        ("depresi", depresi)
-    ]:
-        df[f"kategori_{nama}"] = [
-            kategori(int(x)) for x in skor
-        ]
-
-    return df
+def svg_icon(name):
+    icons = {
+        "filter": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M7 12h10M10 19h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+        "summary": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 15v-3M12 15V8M16 15v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    }
+    return f'<span class="svg-icon">{icons[name]}</span>'
 
 
 # ==================================================
 # 3. HEADER DASHBOARD
+
 # ==================================================
 st.markdown("""
 <div class="hero">
     <p>DATA EXPLORATION STUDIO</p>
-    <h1>🧠 MindScope</h1>
+    <h1>MindScope</h1>
     <p>
         Interactive Mental Health Analytics Dashboard
         — eksplorasi data, ubah grafik, dan temukan pola
@@ -178,9 +149,23 @@ st.markdown("""
 # 4. SIDEBAR DAN INPUT DATA
 # ==================================================
 with st.sidebar:
-    st.title("🧭 Control Center")
+    st.markdown(
+        '<div class="sidebar-brand"><span class="sidebar-mark">M</span>'
+        '<strong>MindScope</strong></div>',
+        unsafe_allow_html=True
+    )
     st.caption("Atur sumber data dan preferensi analisis.")
 
+    st.markdown('<div class="sidebar-heading">Navigasi</div>',
+                unsafe_allow_html=True)
+    bagian = st.radio(
+        "Navigasi dashboard",
+        ["Overview", "Chart Builder", "Data Explorer", "Data Quality"],
+        label_visibility="collapsed"
+    )
+
+    st.markdown('<div class="sidebar-heading">Data</div>',
+                unsafe_allow_html=True)
     sumber = st.radio(
         "Sumber Dataset",
         ["Dataset Demo", "Upload CSV Sendiri"]
@@ -196,7 +181,8 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("⚙️ Pengaturan")
+    st.markdown('<div class="sidebar-heading">Pengaturan</div>',
+                unsafe_allow_html=True)
     tampilkan_tabel = st.toggle(
         "Tampilkan tabel data",
         value=True
@@ -220,7 +206,7 @@ if sumber == "Dataset Demo":
 else:
     if file_csv is None:
         st.info(
-            "⬅️ Upload file CSV melalui sidebar "
+            "Upload file CSV melalui sidebar "
             "untuk mulai menganalisis data."
         )
         st.stop()
@@ -269,7 +255,7 @@ kolom_kategori = [
 # 6. FILTER INTERAKTIF
 # ==================================================
 st.markdown(
-    '<p class="section-title">🎚️ Filter Data</p>',
+    f'{svg_icon("filter")}<p class="section-title">Filter Data</p>',
     unsafe_allow_html=True
 )
 
@@ -302,7 +288,7 @@ for i, kolom in enumerate(kolom_kategori[:4]):
         if terpilih:
             filter_data[kolom] = terpilih
 
-with st.expander("➕ Filter numerik"):
+with st.expander("Filter numerik"):
     kolom_filter_num = st.columns(3)
 
     for i, kolom in enumerate(kolom_numerik):
@@ -354,7 +340,7 @@ if df.empty:
 # 7. KPI / RINGKASAN UTAMA
 # ==================================================
 st.markdown(
-    '<p class="section-title">📌 Ringkasan Dataset</p>',
+    f'{svg_icon("summary")}<p class="section-title">Ringkasan Dataset</p>',
     unsafe_allow_html=True
 )
 
@@ -396,579 +382,19 @@ else:
 
 
 # ==================================================
-# 8. NAVIGASI DASHBOARD
-# ==================================================
-tab1, tab2, tab3, tab4 = st.tabs([
-    "✨ Overview",
-    "📊 Chart Builder",
-    "🧾 Data Explorer",
-    "🧹 Data Quality"
-])
-
-
-# ==================================================
-# 9. OVERVIEW
-# ==================================================
-with tab1:
-    kiri, kanan = st.columns(2)
-
-    with kiri:
-        st.subheader("Komposisi Kategori")
-
-        kategori_tersedia = [
-            c for c in df.columns
-            if c not in kolom_numerik
-        ]
-
-        if kategori_tersedia:
-            default_kategori = next(
-                (
-                    c for c in kategori_tersedia
-                    if any(k in c.lower() for k in [
-                        "kategori_stres", "pekerjaan",
-                        "jenis_kelamin", "dukungan"
-                    ])
-                ),
-                kategori_tersedia[0]
-            )
-
-            pilih_kategori = st.selectbox(
-                "Pilih variabel kategori",
-                kategori_tersedia,
-                index=kategori_tersedia.index(
-                    default_kategori
-                ),
-                key="overview_kategori"
-            )
-
-            hitung = (
-                df[ pilih_kategori ]
-                .fillna("(Kosong)")
-                .astype(str)
-                .value_counts()
-                .head(15)
-                .rename_axis("Kategori")
-                .reset_index(name="Jumlah")
-            )
-
-            fig = px.pie(
-                hitung,
-                names="Kategori",
-                values="Jumlah",
-                hole=0.5,
-                title="Distribusi Kategori",
-                color_discrete_sequence=(
-                    px.colors.qualitative.Bold
-                )
-            )
-
-            fig.update_traces(
-                textinfo="percent+label"
-            )
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
-        else:
-            st.info("Tidak ada kolom kategori.")
-
-    with kanan:
-        st.subheader("Distribusi Numerik")
-
-        if kolom_numerik:
-            pilih_angka = st.selectbox(
-                "Pilih variabel numerik",
-                kolom_numerik,
-                key="overview_numerik"
-            )
-
-            fig = px.histogram(
-                df,
-                x=pilih_angka,
-                nbins=20,
-                marginal="box",
-                title=f"Distribusi {pilih_angka}",
-                color_discrete_sequence=["#5965DC"]
-            )
-
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
-        else:
-            st.info("Tidak ada kolom numerik.")
-
-    if tampilkan_insight:
-        st.subheader("💡 Ringkasan Otomatis")
-
-        st.write(
-            f"- Data yang sedang dianalisis memiliki "
-            f"**{len(df)} baris** dari total "
-            f"**{len(df_asli)} baris**."
-        )
-
-        st.write(
-            f"- Terdapat **{df.shape[1]} variabel** "
-            f"dan **{jumlah_kosong} sel kosong**."
-        )
-
-        if kolom_numerik:
-            rata_rata = df[kolom_numerik].mean(
-                numeric_only=True
-            ).dropna()
-
-            if not rata_rata.empty:
-                c_tertinggi = rata_rata.idxmax()
-                st.write(
-                    f"- Rata-rata numerik terbesar: "
-                    f"**{c_tertinggi}** "
-                    f"({rata_rata[c_tertinggi]:.2f})."
-                )
-
-        st.caption(
-            "Ringkasan bersifat deskriptif, "
-            "bukan diagnosis atau bukti sebab-akibat."
-        )
-
-
-# ==================================================
-# 10. CHART BUILDER
-# ==================================================
-with tab2:
-    st.subheader("🛠️ Bangun Grafik Sendiri")
-
-    st.caption(
-        "Ubah pilihan untuk memperbarui grafik secara otomatis."
+# 9. DASHBOARD VIEW
+if bagian == "Overview":
+    render_overview(
+        df, df_asli, kolom_numerik, tampilkan_insight, jumlah_kosong
     )
-
-    jenis_grafik = st.selectbox(
-        "Jenis Grafik",
-        [
-            "Bar Chart",
-            "Line Chart",
-            "Scatter Plot",
-            "Histogram",
-            "Box Plot",
-            "Violin Plot",
-            "Pie / Donut",
-            "Area Chart",
-            "Heatmap Korelasi"
-        ]
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        kolom_x = st.selectbox(
-            "Variabel X / Kategori",
-            df.columns.tolist()
-        )
-
-    with c2:
-        pilihan_y = (
-            kolom_numerik
-            if kolom_numerik
-            else df.columns.tolist()
-        )
-
-        kolom_y = st.selectbox(
-            "Variabel Y / Nilai",
-            pilihan_y
-        )
-
-    with c3:
-        pilihan_warna = ["Tidak Ada"] + df.columns.tolist()
-
-        warna = st.selectbox(
-            "Warna / Kelompok",
-            pilihan_warna
-        )
-
-    c4, c5 = st.columns(2)
-
-    with c4:
-        agregasi = st.selectbox(
-            "Metode Agregasi",
-            [
-                "Rata-rata",
-                "Jumlah",
-                "Total",
-                "Minimum",
-                "Maksimum",
-                "Median"
-            ]
-        )
-
-    with c5:
-        judul = st.text_input(
-            "Judul Grafik",
-            value=f"{jenis_grafik}: {kolom_y}"
-        )
-
-    c6, c7 = st.columns(2)
-
-    with c6:
-        jumlah_kategori = st.slider(
-            "Maksimum kategori",
-            min_value=5,
-            max_value=30,
-            value=15
-        )
-
-    with c7:
-        tampilkan_label = st.toggle(
-            "Tampilkan label nilai",
-            value=True
-        )
-
-    warna_arg = None if warna == "Tidak Ada" else warna
-
-    try:
-        if jenis_grafik == "Heatmap Korelasi":
-            if len(kolom_numerik) < 2:
-                st.warning(
-                    "Heatmap memerlukan minimal "
-                    "dua kolom numerik."
-                )
-            else:
-                korelasi = df[kolom_numerik].corr(
-                    numeric_only=True
-                )
-
-                fig = px.imshow(
-                    korelasi,
-                    text_auto=".2f",
-                    aspect="auto",
-                    color_continuous_scale="RdBu_r",
-                    zmin=-1,
-                    zmax=1,
-                    title=judul
-                )
-
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
-                )
-
-                st.caption(
-                    "Korelasi bukan bukti sebab-akibat."
-                )
-
-        elif jenis_grafik == "Histogram":
-            fig = px.histogram(
-                df,
-                x=kolom_y,
-                color=warna_arg,
-                nbins=jumlah_kategori,
-                title=judul
-            )
-
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
-
-        elif jenis_grafik in ["Box Plot", "Violin Plot"]:
-            if kolom_y not in kolom_numerik:
-                st.warning(
-                    "Pilih variabel Y yang numerik."
-                )
-            else:
-                if jenis_grafik == "Box Plot":
-                    fig = px.box(
-                        df,
-                        x=kolom_x if kolom_x != kolom_y else None,
-                        y=kolom_y,
-                        color=warna_arg,
-                        title=judul,
-                        points="outliers"
-                    )
-                else:
-                    fig = px.violin(
-                        df,
-                        x=kolom_x if kolom_x != kolom_y else None,
-                        y=kolom_y,
-                        color=warna_arg,
-                        box=True,
-                        points="outliers",
-                        title=judul
-                    )
-
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
-                )
-
-        elif jenis_grafik == "Pie / Donut":
-            hitung = (
-                df[kolom_x]
-                .fillna("(Kosong)")
-                .astype(str)
-                .value_counts()
-                .head(jumlah_kategori)
-                .rename_axis("Kategori")
-                .reset_index(name="Jumlah")
-            )
-
-            fig = px.pie(
-                hitung,
-                names="Kategori",
-                values="Jumlah",
-                hole=0.45,
-                title=judul
-            )
-
-            if tampilkan_label:
-                fig.update_traces(
-                    textinfo="percent+label"
-                )
-
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
-
-        elif jenis_grafik == "Scatter Plot":
-            if (
-                kolom_x not in kolom_numerik
-                or kolom_y not in kolom_numerik
-            ):
-                st.warning(
-                    "Scatter Plot memerlukan "
-                    "variabel X dan Y numerik."
-                )
-            else:
-                fig = px.scatter(
-                    df,
-                    x=kolom_x,
-                    y=kolom_y,
-                    color=warna_arg,
-                    hover_data=df.columns.tolist(),
-                    title=judul
-                )
-
-                fig.update_layout(template="plotly_white")
-                st.plotly_chart(
-                    fig, use_container_width=True
-                )
-
-        else:
-            kerja = df.copy()
-            kerja[kolom_x] = (
-                kerja[kolom_x]
-                .fillna("(Kosong)")
-                .astype(str)
-            )
-
-            if agregasi == "Jumlah":
-                ringkasan = (
-                    kerja.groupby(kolom_x)
-                    .size()
-                    .reset_index(name="Nilai")
-                )
-            else:
-                kerja["_nilai"] = pd.to_numeric(
-                    kerja[kolom_y], errors="coerce"
-                )
-
-                grup = kerja.groupby(kolom_x)["_nilai"]
-
-                if agregasi == "Total":
-                    hasil = grup.sum(min_count=1)
-                elif agregasi == "Minimum":
-                    hasil = grup.min()
-                elif agregasi == "Maksimum":
-                    hasil = grup.max()
-                elif agregasi == "Median":
-                    hasil = grup.median()
-                else:
-                    hasil = grup.mean()
-
-                ringkasan = hasil.reset_index(
-                    name="Nilai"
-                )
-
-            ringkasan = (
-                ringkasan
-                .dropna(subset=["Nilai"])
-                .head(jumlah_kategori)
-            )
-
-            if jenis_grafik == "Line Chart":
-                fig = px.line(
-                    ringkasan,
-                    x=kolom_x,
-                    y="Nilai",
-                    markers=True,
-                    title=judul
-                )
-
-            elif jenis_grafik == "Area Chart":
-                fig = px.area(
-                    ringkasan,
-                    x=kolom_x,
-                    y="Nilai",
-                    title=judul
-                )
-
-            else:
-                fig = px.bar(
-                    ringkasan,
-                    x=kolom_x,
-                    y="Nilai",
-                    color=warna_arg if warna_arg else kolom_x,
-                    text="Nilai" if tampilkan_label else None,
-                    title=judul,
-                    color_discrete_sequence=(
-                        px.colors.qualitative.Bold
-                    )
-                )
-
-            if tampilkan_label:
-                fig.update_traces(
-                    texttemplate="%{y:.2f}",
-                    textposition="outside"
-                )
-
-            fig.update_layout(template="plotly_white")
-            st.plotly_chart(
-                fig, use_container_width=True
-            )
-
-    except Exception as e:
-        st.error(
-            f"Grafik gagal dibuat: {e}"
-        )
-
-    with st.expander("Lihat data sumber grafik"):
-        st.dataframe(df, use_container_width=True)
+elif bagian == "Chart Builder":
+    render_chart_builder(df, kolom_numerik)
+elif bagian == "Data Explorer":
+    render_data_explorer(df, df_asli, tampilkan_tabel)
+elif bagian == "Data Quality":
+    render_data_quality(df)
 
 
-# ==================================================
-# 11. DATA EXPLORER
-# ==================================================
-with tab3:
-    st.subheader("🧾 Data Explorer")
-
-    st.info(
-        "Kau bisa mengedit sel, menambah baris, "
-        "atau menghapus baris. Unduh CSV untuk "
-        "menyimpan hasilnya. File sumber tidak "
-        "akan ditimpa otomatis."
-    )
-
-    data_edit = st.data_editor(
-        df,
-        num_rows="dynamic",
-        use_container_width=True,
-        height=450,
-        key="editor_data"
-    )
-
-    csv_edit = data_edit.to_csv(
-        index=False
-    ).encode("utf-8-sig")
-
-    st.download_button(
-        "⬇️ Unduh Data Hasil Edit",
-        data=csv_edit,
-        file_name="mental_health_data_edited.csv",
-        mime="text/csv"
-    )
-
-    st.download_button(
-        "⬇️ Unduh Dataset Penuh",
-        data=df_asli.to_csv(
-            index=False
-        ).encode("utf-8-sig"),
-        file_name="mental_health_dataset.csv",
-        mime="text/csv"
-    )
-
-    if tampilkan_tabel:
-        st.subheader("Pratinjau Data")
-        st.dataframe(
-            df.head(100),
-            use_container_width=True
-        )
-
-
-# ==================================================
-# 12. DATA QUALITY
-# ==================================================
-with tab4:
-    st.subheader("🧹 Pemeriksaan Kualitas Data")
-
-    q1, q2, q3 = st.columns(3)
-
-    q1.metric(
-        "Baris Duplikat",
-        f"{df.duplicated().sum():,}"
-    )
-
-    q2.metric(
-        "Kolom Memiliki Data Kosong",
-        f"{(df.isna().sum() > 0).sum():,}"
-    )
-
-    persentase_kosong = (
-        df.isna().sum().sum()
-        / max(df.size, 1)
-        * 100
-    )
-
-    q3.metric(
-        "Persentase Sel Kosong",
-        f"{persentase_kosong:.2f}%"
-    )
-
-    kualitas = pd.DataFrame({
-        "Kolom": df.columns,
-        "Tipe Data": [
-            str(df[c].dtype) for c in df.columns
-        ],
-        "Nilai Kosong": [
-            int(df[c].isna().sum())
-            for c in df.columns
-        ],
-        "Persentase Kosong (%)": [
-            round(float(df[c].isna().mean() * 100), 2)
-            for c in df.columns
-        ],
-        "Nilai Unik": [
-            int(df[c].nunique(dropna=True))
-            for c in df.columns
-        ]
-    })
-
-    st.dataframe(
-        kualitas,
-        use_container_width=True
-    )
-
-    tipe = (
-        df.dtypes.astype(str)
-        .value_counts()
-        .rename_axis("Tipe Data")
-        .reset_index(name="Jumlah Kolom")
-    )
-
-    fig = px.bar(
-        tipe,
-        x="Tipe Data",
-        y="Jumlah Kolom",
-        color="Tipe Data",
-        text="Jumlah Kolom",
-        title="Distribusi Tipe Data"
-    )
-
-    fig.update_layout(template="plotly_white")
-    st.plotly_chart(
-        fig, use_container_width=True
-    )
-
-
-# ==================================================
 # 13. FOOTER
 # ==================================================
 st.divider()
